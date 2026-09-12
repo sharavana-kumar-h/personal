@@ -1,125 +1,111 @@
 "use server";
 
-import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 
 import { prisma } from "@/lib/db";
-import { createUserSession, deleteUserSessions, getSessionUser, hashPassword, sessionCookieName, verifyPassword } from "@/lib/auth";
+import { getSessionUser } from "@/lib/auth";
 import { consumeRateLimit } from "@/lib/rate-limit";
+import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { loginSchema, registerSchema } from "@/lib/validation";
 
+function authError() {
+  return new Error("Invalid email or password.");
+}
+
 export async function registerUser(formData: FormData) {
-  const raw = {
+  const parsed = registerSchema.safeParse({
     name: String(formData.get("name") ?? ""),
     email: String(formData.get("email") ?? ""),
     password: String(formData.get("password") ?? ""),
-  };
-
-  const parsed = registerSchema.safeParse(raw);
+  });
 
   if (!parsed.success) {
     throw new Error(parsed.error.issues[0]?.message ?? "Invalid registration data.");
   }
 
-  const registrationLimit = consumeRateLimit(`register:${parsed.data.email.toLowerCase()}`, 5, 15 * 60 * 1000);
-  if (!registrationLimit.allowed) {
+  const email = parsed.data.email.toLowerCase();
+  const limit = consumeRateLimit(`register:${email}`, 5, 15 * 60 * 1000);
+  if (!limit.allowed) {
     throw new Error("Too many registration attempts. Please try again later.");
   }
 
-  const user = await prisma.$transaction(async (tx) => {
-    if (await tx.user.count() >= 2) {
-      throw new Error("Registration is closed.");
-    }
+  if (await prisma.user.count() >= 2) {
+    throw new Error("Registration is closed.");
+  }
 
-    const existing = await tx.user.findUnique({
-      where: { email: parsed.data.email.toLowerCase() },
-    });
-
-    if (existing) {
-      throw new Error("An account with that email already exists.");
-    }
-
-    return tx.user.create({
-      data: {
-        email: parsed.data.email.toLowerCase(),
-        passwordHash: await hashPassword(parsed.data.password),
-        name: parsed.data.name || null,
-        profile: {
-          create: {
-            displayName: parsed.data.name || null,
-            unitSystem: "metric",
-          },
-        },
-      },
-    });
-  }, { isolationLevel: "Serializable" });
-
-  const token = await createUserSession(user.id);
-  const cookieStore = await cookies();
-  cookieStore.set(sessionCookieName, token, {
-    httpOnly: true,
-    sameSite: "lax",
-    secure: process.env.NODE_ENV === "production",
-    path: "/",
-    maxAge: 60 * 60 * 24 * 7,
+  const supabase = await createSupabaseServerClient();
+  const { data, error } = await supabase.auth.signUp({
+    email,
+    password: parsed.data.password,
+    options: { data: { name: parsed.data.name || null } },
   });
 
-  redirect("/dashboard");
+  if (error || !data.user) {
+    throw new Error(error?.message ?? "Registration failed.");
+  }
+  const authUser = data.user;
+
+  try {
+    await prisma.$transaction(async (tx) => {
+      if (await tx.user.count() >= 2) {
+        throw new Error("Registration is closed.");
+      }
+
+      await tx.user.create({
+        data: {
+          supabaseAuthId: authUser.id,
+          email,
+          name: parsed.data.name || null,
+          profile: {
+            create: {
+              displayName: parsed.data.name || null,
+              unitSystem: "metric",
+            },
+          },
+        },
+      });
+    }, { isolationLevel: "Serializable" });
+  } catch {
+    await supabase.auth.signOut();
+    throw new Error("Registration could not be completed.");
+  }
+
+  redirect(data.session ? "/dashboard" : "/login?checkEmail=1");
 }
 
 export async function loginUser(formData: FormData) {
-  const raw = {
+  const parsed = loginSchema.safeParse({
     email: String(formData.get("email") ?? ""),
     password: String(formData.get("password") ?? ""),
-  };
-
-  const parsed = loginSchema.safeParse(raw);
+  });
 
   if (!parsed.success) {
-    throw new Error(parsed.error.issues[0]?.message ?? "Invalid login data.");
+    throw authError();
   }
 
-  const loginLimit = consumeRateLimit(`login:${parsed.data.email.toLowerCase()}`, 10, 15 * 60 * 1000);
-  if (!loginLimit.allowed) {
+  const email = parsed.data.email.toLowerCase();
+  const limit = consumeRateLimit(`login:${email}`, 10, 15 * 60 * 1000);
+  if (!limit.allowed) {
     throw new Error("Too many login attempts. Please try again later.");
   }
 
-  const user = await prisma.user.findUnique({
-    where: { email: parsed.data.email.toLowerCase() },
-  });
+  const supabase = await createSupabaseServerClient();
+  const { error } = await supabase.auth.signInWithPassword({ email, password: parsed.data.password });
+  if (error) {
+    throw authError();
+  }
 
+  const user = await getSessionUser();
   if (!user) {
-    throw new Error("Invalid email or password.");
+    await supabase.auth.signOut();
+    throw authError();
   }
-
-  const validPassword = await verifyPassword(parsed.data.password, user.passwordHash);
-
-  if (!validPassword) {
-    throw new Error("Invalid email or password.");
-  }
-
-  const token = await createUserSession(user.id);
-  const cookieStore = await cookies();
-  cookieStore.set(sessionCookieName, token, {
-    httpOnly: true,
-    sameSite: "lax",
-    secure: process.env.NODE_ENV === "production",
-    path: "/",
-    maxAge: 60 * 60 * 24 * 7,
-  });
 
   redirect("/dashboard");
 }
 
 export async function logoutUser() {
-  const user = await getSessionUser();
-
-  if (user) {
-    await deleteUserSessions(user.id);
-  }
-
-  const cookieStore = await cookies();
-  cookieStore.delete(sessionCookieName);
-
+  const supabase = await createSupabaseServerClient();
+  await supabase.auth.signOut();
   redirect("/login");
 }

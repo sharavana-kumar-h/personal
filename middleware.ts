@@ -1,10 +1,10 @@
+import { createServerClient } from "@supabase/ssr";
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
-import { jwtVerify } from "jose";
-import { getSessionSecret, sessionAudience, sessionIssuer } from "@/lib/session-secret";
+
+import { getSupabaseEnv } from "@/lib/supabase/config";
 
 const protectedPaths = ["/dashboard", "/today", "/workouts", "/nutrition", "/body", "/progress", "/goals", "/ai", "/settings"];
-
 const publicPaths = ["/login", "/register", "/"];
 
 export async function middleware(request: NextRequest) {
@@ -16,39 +16,34 @@ export async function middleware(request: NextRequest) {
     return NextResponse.next();
   }
 
-  const token = request.cookies.get("fitness_session")?.value;
+  let response = NextResponse.next({ request });
+  const supabaseEnv = getSupabaseEnv();
+  const supabase = createServerClient(supabaseEnv.url, supabaseEnv.anonKey, {
+    cookies: {
+      getAll() {
+        return request.cookies.getAll();
+      },
+      setAll(cookiesToSet) {
+        cookiesToSet.forEach(({ name, value }) => request.cookies.set(name, value));
+        response = NextResponse.next({ request });
+        cookiesToSet.forEach(({ name, value, options }) => response.cookies.set(name, value, options));
+      },
+    },
+  });
 
-  if (!token) {
-    if (isProtected) {
-      return NextResponse.redirect(new URL("/login", request.url));
-    }
+  const { data: { user } } = await supabase.auth.getUser();
 
-    return NextResponse.next();
+  if (isProtected && !user) {
+    return NextResponse.redirect(new URL("/login", request.url));
   }
 
-  try {
-    await jwtVerify(token, getSessionSecret(), {
-      issuer: sessionIssuer,
-      audience: sessionAudience,
-    });
-
-    if (isPublic) {
-      return NextResponse.redirect(new URL("/dashboard", request.url));
-    }
-
-    return NextResponse.next();
-  } catch {
-    const response = isProtected
-      ? NextResponse.redirect(new URL("/login", request.url))
-      : NextResponse.next();
-
-    response.cookies.delete("fitness_session");
-    return response;
+  if (isPublic && user) {
+    return NextResponse.redirect(new URL("/dashboard", request.url));
   }
+
+  return response;
 }
 
 export const config = {
-  matcher: [
-    "/((?!api/|_next/static|_next/image|favicon.ico).*)",
-  ],
+  matcher: ["/((?!api/|_next/static|_next/image|favicon.ico).*)"],
 };

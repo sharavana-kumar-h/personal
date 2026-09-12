@@ -2,7 +2,7 @@
 
 import { requireUser } from "@/lib/auth";
 import { consumeRateLimit } from "@/lib/rate-limit";
-import { AiServiceError, xaiService } from "@/services/ai";
+import { AiServiceError, aiService } from "@/services/ai";
 import type { CoachMode } from "@/services/coach-context";
 import { buildCoachContext } from "@/services/coach-context";
 import { prisma } from "@/lib/db";
@@ -52,7 +52,7 @@ export async function sendCoachMessage(
 
   try {
     const context = await buildCoachContext(user.id, mode);
-    const answer = await xaiService.chat(message, context);
+    const answer = await aiService.chatWithCoach(message, context);
     await prisma.$transaction([
       prisma.coachMessage.create({
         data: { conversationId: ownedConversation.id, role: "user", content: message },

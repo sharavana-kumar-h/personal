@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 
+import { logoutUser } from "@/app/actions/auth";
 import { getSessionUser } from "@/lib/auth";
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
@@ -22,7 +23,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
             <span className="rounded-full border border-slate-700 bg-slate-900 px-3 py-1 text-sm text-slate-200">
               {user.email}
             </span>
-            <form action="/api/auth/logout" method="POST">
+            <form action={logoutUser}>
               <button
                 type="submit"
                 className="rounded-xl border border-slate-700 bg-slate-900 px-3 py-2 text-sm font-medium text-slate-200 transition hover:border-emerald-500 hover:text-white"

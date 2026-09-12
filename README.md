@@ -1,91 +1,61 @@
 # Private Fitness Hub
 
-This is the foundation for a private shared fitness, nutrition, workout-tracking, and progress-monitoring platform for two users.
+A private shared fitness, nutrition, workout-tracking, progress-monitoring, and AI coaching platform for two users.
 
-## Tech stack
+## Architecture
 
-- Next.js 16
-- TypeScript
-- Tailwind CSS
-- PostgreSQL
-- Prisma ORM
-- Next.js server actions and API routes
-- Zod validation
-- bcryptjs for password hashing
-- jose for JWT/session handling
+- Next.js 16 App Router and TypeScript
+- Vercel deployment target
+- Supabase PostgreSQL with Prisma
+- Supabase Auth with `@supabase/ssr` as the only authentication framework
+- Server-side DeepSeek API integration
+- Zod validation and Vitest tests
 
-## Current foundation includes
+## Authentication and authorization
 
-- App Router setup
-- TypeScript configuration
-- Tailwind styling foundation
-- Prisma schema for users and sessions
-- Secure session management
-- Protected application routes
-- Login and registration forms
-- Server-side auth actions
-- Two-user data isolation model
-- Environment variable template
-- Basic tests for validation
-- Nutrition goals, dated meals, editable food entries, daily totals, and weekly averages
-- Server-only xAI/Grok service with structured outputs and validated AI analysis
+Supabase Auth owns sign-up, password verification, access-token refresh, and session cookies. Server Components, Server Actions, and middleware derive the authenticated Supabase user with `supabase.auth.getUser()`.
+
+The local Prisma `User` row stores the unique `supabaseAuthId`. Every application query and mutation uses the local user ID derived from that trusted server-side mapping. Client-supplied user IDs are not accepted as an authorization input.
+
+## Environment variables
+
+Copy `.env.example` to `.env.local` and configure:
+
+```env
+DATABASE_URL="postgresql://..."
+DIRECT_URL="postgresql://..."
+NEXT_PUBLIC_SUPABASE_URL="https://your-project.supabase.co"
+NEXT_PUBLIC_SUPABASE_ANON_KEY="your-supabase-anon-key"
+DEEPSEEK_API_KEY="your-deepseek-api-key"
+DEEPSEEK_API_BASE_URL="https://api.deepseek.com"
+DEEPSEEK_MODEL="deepseek-flash"
+DEEPSEEK_TIMEOUT_MS="20000"
+```
+
+`DEEPSEEK_API_KEY` is server-only. It must never use a `NEXT_PUBLIC_` name or appear in browser code.
 
 ## Local development
 
-1. Install dependencies:
-   ```bash
-   npm install
-   ```
-
-2. Create a local PostgreSQL database.
-
-3. Copy the environment example file:
-   ```bash
-   cp .env.example .env.local
-   ```
-
-4. Update values in `.env.local`.
-
-5. Generate Prisma client:
-   ```bash
-   npx prisma generate
-   ```
-
-6. Run database migrations:
-   ```bash
-   npx prisma migrate dev --name init
-   ```
-
-7. Start the app:
-   ```bash
-   npm run dev
-   ```
-
-8. Open http://localhost:3000
-
-## Scripts
-
 ```bash
+npm install
+npx prisma generate
+npx prisma migrate dev --name init
 npm run dev
-npm run build
-npm run start
-npm run lint
-npx vitest run
 ```
 
-## Security notes
-
-- Passwords are stored as hashes, not plaintext.
-- Authenticated access is enforced on server-side routes and middleware.
-- Every user-specific resource should be scoped to the authenticated user.
-- AI API keys must remain server-side and never be exposed to the browser.
+Open http://localhost:3000.
 
 ## AI service
 
-The AI service uses the official xAI Responses API at `https://api.x.ai/v1/responses` with structured JSON Schema output where supported. Configure `XAI_API_KEY` in `.env.local`; the key is never included in browser code, prompts, logs, or stored application data.
+The AI layer uses the official DeepSeek Chat Completions API at `https://api.deepseek.com/chat/completions`. The current documented Flash model is `deepseek-flash`; `DEEPSEEK_MODEL` can later be changed to `deepseek-v4-pro`. `deepseek-v4-flash` is intentionally not used because the current DeepSeek documentation identifies it as a legacy name for a retired model.
 
-AI-generated nutrition values are explicitly marked as estimates and must be reviewed before being saved as nutrition entries. See the official [xAI Generate Text](https://docs.x.ai/docs/guides/chat) and [Structured Outputs](https://docs.x.ai/docs/guides/structured-outputs) documentation for the API contract.
+AI-generated nutrition values and recommendations remain estimates. The database is always the source of truth.
 
-## Important roadmap note
+## Validation
 
-Advanced nutrition AI, workout AI, charts, and progress dashboards remain outside the current scope. Nutrition values are entered or reviewed by the user; AI estimates are stored as editable, explicitly unverified entries.
+```bash
+npm run lint
+npx tsc --noEmit
+npm test -- --run
+npm run build
+```

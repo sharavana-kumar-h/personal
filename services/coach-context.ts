@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/db";
+import { requireUser } from "@/lib/auth";
 import { roundNutrition, sumNutrition } from "@/lib/nutrition";
 import { calculateWorkoutVolume, type WorkoutHistoryEntry } from "@/lib/workouts";
 
@@ -26,6 +27,11 @@ function labeled<T>(value: T, provenance: DataProvenance) {
 }
 
 export async function buildNutritionCoachContext(userId: string, now = new Date()) {
+  const authenticatedUser = await requireUser();
+  if (authenticatedUser.id !== userId) {
+    throw new Error("Unauthorized");
+  }
+
   const today = dayStart(now);
   const tomorrow = shiftDays(today, 1);
   const historyStart = shiftDays(today, -30);
@@ -112,6 +118,11 @@ export async function buildNutritionCoachContext(userId: string, now = new Date(
 }
 
 export async function buildWorkoutCoachContext(userId: string, now = new Date()) {
+  const authenticatedUser = await requireUser();
+  if (authenticatedUser.id !== userId) {
+    throw new Error("Unauthorized");
+  }
+
   const end = shiftDays(dayStart(now), 1);
   const start = shiftDays(end, -90);
 

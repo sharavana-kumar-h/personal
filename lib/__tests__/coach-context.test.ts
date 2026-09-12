@@ -11,7 +11,12 @@ vi.mock("@/lib/db", () => ({
   },
 }));
 
+vi.mock("@/lib/auth", () => ({
+  requireUser: vi.fn(async () => ({ id: "user-a" })),
+}));
+
 import { prisma } from "@/lib/db";
+import { requireUser } from "@/lib/auth";
 import { buildNutritionCoachContext, buildWorkoutCoachContext } from "@/services/coach-context";
 
 describe("authenticated coach context", () => {
@@ -109,6 +114,7 @@ describe("authenticated coach context", () => {
   });
 
   it("scopes workout context and marks derived volume as calculated", async () => {
+    vi.mocked(requireUser).mockResolvedValue({ id: "user-b" } as never);
     vi.mocked(prisma.workoutProgram.findFirst).mockResolvedValue(null);
     vi.mocked(prisma.nutritionGoal.findUnique).mockResolvedValue(null);
     vi.mocked(prisma.cardioSession.findMany).mockResolvedValue([]);
@@ -146,5 +152,12 @@ describe("authenticated coach context", () => {
     expect(prisma.workoutSession.findMany).toHaveBeenCalledWith(expect.objectContaining({ where: expect.objectContaining({ userId: "user-b" }) }));
     expect(context.completedSessions[0]?.sets[0]?.volumeKg).toEqual({ value: 400, provenance: "calculated" });
     expect(context.completedSessions[0]?.sets[0]?.weightKg.provenance).toBe("user_entered");
+  });
+
+  it("rejects a context request for a different authenticated user", async () => {
+    vi.mocked(requireUser).mockResolvedValue({ id: "user-a" } as never);
+
+    await expect(buildNutritionCoachContext("user-b")).rejects.toThrow("Unauthorized");
+    expect(prisma.meal.findMany).not.toHaveBeenCalled();
   });
 });
