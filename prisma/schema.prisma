@@ -1,0 +1,280 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id            String                    @id @default(cuid())
+  email         String                    @unique
+  passwordHash  String
+  name          String?
+  createdAt     DateTime                  @default(now())
+  updatedAt     DateTime                  @updatedAt
+  profile       Profile?
+  sessions      Session[]
+  bodySnapshots BodyCompositionSnapshot[]
+  workoutPrograms WorkoutProgram[]
+  workoutSessions WorkoutSession[]
+  cardioSessions  CardioSession[]
+  nutritionGoal   NutritionGoal?
+  meals           Meal[]
+  coachConversations CoachConversation[]
+}
+
+model Profile {
+  id          String   @id @default(cuid())
+  userId      String   @unique
+  displayName String?
+  age         Int?
+  gender      String?
+  heightCm    Decimal? @db.Decimal(5, 2)
+  unitSystem  String   @default("metric")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model Session {
+  id        String   @id @default(cuid())
+  userId    String
+  tokenHash String   @unique
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([expiresAt])
+}
+
+model NutritionGoal {
+  id           String   @id @default(cuid())
+  userId       String   @unique
+  calorieTarget Int
+  proteinTarget Float
+  carbTarget    Float?
+  fatTarget     Float?
+  fiberTarget   Float?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model Meal {
+  id          String      @id @default(cuid())
+  userId      String
+  date        DateTime
+  mealType    String
+  name        String
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+  user        User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  foods       FoodEntry[]
+
+  @@index([userId, date])
+}
+
+model FoodEntry {
+  id             String   @id @default(cuid())
+  mealId         String
+  name           String
+  quantityGrams  Float
+  calories       Float
+  protein        Float
+  carbohydrates  Float
+  fat            Float
+  fiber          Float
+  isAiEstimate   Boolean  @default(false)
+  sourceNote     String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  meal           Meal     @relation(fields: [mealId], references: [id], onDelete: Cascade)
+
+  @@index([mealId])
+}
+
+model CoachConversation {
+  id        String          @id @default(cuid())
+  userId    String
+  mode      String
+  createdAt DateTime        @default(now())
+  updatedAt DateTime        @updatedAt
+  user      User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  messages  CoachMessage[]
+
+  @@index([userId, mode, updatedAt])
+}
+
+model CoachMessage {
+  id             String           @id @default(cuid())
+  conversationId String
+  role           String
+  content        String
+  createdAt      DateTime         @default(now())
+  conversation   CoachConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  @@index([conversationId, createdAt])
+}
+
+model BodyCompositionSnapshot {
+  id                String                    @id @default(cuid())
+  userId            String
+  date              DateTime
+  weightKg          Float
+  heightCm          Float?
+  bmi               Float?
+  smm               Float?
+  bfm               Float?
+  pbf               Float?
+  waistHipRatio     Float?
+  visceralFatLevel  Float?
+  fatFreeMass       Float?
+  bmr               Float?
+  obesityDegree     Float?
+  smi               Float?
+  notes             String?
+  measurementSource String?
+  createdAt         DateTime                  @default(now())
+  updatedAt         DateTime                  @updatedAt
+  user              User                      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  leanSegments      SegmentLeanMeasurement[]
+  fatSegments       SegmentFatMeasurement[]
+
+  @@index([userId, date])
+}
+
+model WorkoutProgram {
+  id          String       @id @default(cuid())
+  userId      String
+  name        String
+  split       String
+  description String?
+  isActive    Boolean      @default(true)
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+  user        User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  days        WorkoutDay[]
+  sessions    WorkoutSession[]
+
+  @@index([userId, isActive])
+}
+
+model WorkoutDay {
+  id          String           @id @default(cuid())
+  programId   String
+  name        String
+  muscleGroup String
+  notes       String?
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+  program     WorkoutProgram   @relation(fields: [programId], references: [id], onDelete: Cascade)
+  exercises   PlannedExercise[]
+
+  @@index([programId])
+}
+
+model PlannedExercise {
+  id          String    @id @default(cuid())
+  dayId       String
+  name        String
+  muscleGroup String?
+  sets        Int       @default(3)
+  reps        Int       @default(10)
+  weightKg    Float     @default(0)
+  restSec     Int       @default(90)
+  rpe         Float?
+  rir         Int?
+  notes       String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  day         WorkoutDay @relation(fields: [dayId], references: [id], onDelete: Cascade)
+
+  @@index([dayId])
+}
+
+model WorkoutSession {
+  id          String        @id @default(cuid())
+  userId      String
+  programId   String?
+  date        DateTime
+  dayName     String?
+  durationMin Int?
+  notes       String?
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+  user        User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  program     WorkoutProgram? @relation(fields: [programId], references: [id], onDelete: SetNull)
+  sets        WorkoutSet[]
+  cardioSessions CardioSession[]
+
+  @@index([userId, date])
+}
+
+model WorkoutSet {
+  id          String        @id @default(cuid())
+  sessionId   String
+  exerciseName String
+  setNumber   Int
+  weightKg    Float
+  reps        Int
+  durationSec Int?
+  rpe         Float?
+  rir         Int?
+  notes       String?
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+  session     WorkoutSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@index([sessionId, exerciseName])
+}
+
+model CardioSession {
+  id                String         @id @default(cuid())
+  userId            String
+  sessionId         String?
+  activity          String
+  durationMin       Int
+  distanceKm        Float?
+  resistance        Float?
+  speed             Float?
+  incline           Float?
+  heartRate         Int?
+  estimatedCalories Int?
+  notes             String?
+  date              DateTime
+  createdAt         DateTime       @default(now())
+  updatedAt         DateTime       @updatedAt
+  user              User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  session           WorkoutSession? @relation(fields: [sessionId], references: [id], onDelete: SetNull)
+
+  @@index([userId, date])
+}
+
+model SegmentLeanMeasurement {
+  id          String                  @id @default(cuid())
+  snapshotId  String
+  segment     String
+  value       Float
+  unit        String                  @default("kg")
+  createdAt   DateTime                @default(now())
+  updatedAt   DateTime                @updatedAt
+  snapshot    BodyCompositionSnapshot @relation(fields: [snapshotId], references: [id], onDelete: Cascade)
+
+  @@index([snapshotId])
+}
+
+model SegmentFatMeasurement {
+  id          String                  @id @default(cuid())
+  snapshotId  String
+  segment     String
+  value       Float
+  unit        String                  @default("kg")
+  createdAt   DateTime                @default(now())
+  updatedAt   DateTime                @updatedAt
+  snapshot    BodyCompositionSnapshot @relation(fields: [snapshotId], references: [id], onDelete: Cascade)
+
+  @@index([snapshotId])
+}
