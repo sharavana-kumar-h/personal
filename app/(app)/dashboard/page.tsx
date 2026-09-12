@@ -57,6 +57,7 @@ export default async function DashboardPage({
           </div>
           <div className="flex flex-wrap gap-2">
             <Link href="/nutrition" className="rounded-lg border border-slate-700 px-3 py-2 text-sm text-slate-200 hover:border-emerald-400">Log nutrition</Link>
+            <Link href="/workouts" className="rounded-lg border border-slate-700 px-3 py-2 text-sm text-slate-200 hover:border-emerald-400">Log workout</Link>
             <Link href="/ai" className="rounded-lg bg-emerald-500 px-3 py-2 text-sm font-semibold text-slate-950 hover:bg-emerald-400">Open AI coach</Link>
           </div>
         </div>
