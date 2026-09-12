@@ -32,7 +32,7 @@ DEEPSEEK_MODEL="deepseek-flash"
 DEEPSEEK_TIMEOUT_MS="20000"
 ```
 
-`DEEPSEEK_API_KEY` is server-only. It must never use a `NEXT_PUBLIC_` name or appear in browser code.
+`DEEPSEEK_API_KEY` is server-only. It must never use a `NEXT_PUBLIC_` name or appear in browser code. See [the two-user Supabase mapping procedure](docs/two-user-supabase-mapping.md) before connecting existing data.
 
 ## Local development
 
@@ -43,11 +43,13 @@ npx prisma migrate dev --name init
 npm run dev
 ```
 
+Use `prisma migrate dev` only against a disposable development database. For production, generate and review the migration locally, then apply the committed migration with `npx prisma migrate deploy` against the production `DATABASE_URL`/`DIRECT_URL` configuration.
+
 Open http://localhost:3000.
 
 ## AI service
 
-The AI layer uses the official DeepSeek Chat Completions API at `https://api.deepseek.com/chat/completions`. The current documented Flash model is `deepseek-flash`; `DEEPSEEK_MODEL` can later be changed to `deepseek-v4-pro`. `deepseek-v4-flash` is intentionally not used because the current DeepSeek documentation identifies it as a legacy name for a retired model.
+The AI layer uses the official DeepSeek Chat Completions API at `https://api.deepseek.com/chat/completions`. The current official API documentation lists `deepseek-flash` as a supported model and supports JSON output with `response_format: { "type": "json_object" }`.
 
 AI-generated nutrition values and recommendations remain estimates. The database is always the source of truth.
 

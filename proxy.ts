@@ -7,7 +7,7 @@ import { getSupabaseEnv } from "@/lib/supabase/config";
 const protectedPaths = ["/dashboard", "/today", "/workouts", "/nutrition", "/body", "/progress", "/goals", "/ai", "/settings"];
 const publicPaths = ["/login", "/register", "/"];
 
-export async function middleware(request: NextRequest) {
+export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
   const isProtected = protectedPaths.some((path) => pathname === path || pathname.startsWith(`${path}/`));
   const isPublic = publicPaths.some((path) => pathname === path || pathname.startsWith(`${path}/`));
