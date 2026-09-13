@@ -13,8 +13,10 @@ function getRuntimeDatabaseUrl() {
 
   const url = new URL(databaseUrl);
   if (url.port === "6543") {
+    const configuredLimit = Number.parseInt(process.env.PRISMA_CONNECTION_LIMIT ?? "5", 10);
+    const connectionLimit = Number.isInteger(configuredLimit) && configuredLimit > 0 ? configuredLimit : 5;
     url.searchParams.set("pgbouncer", "true");
-    url.searchParams.set("connection_limit", "1");
+    url.searchParams.set("connection_limit", String(connectionLimit));
   }
 
   return url.toString();

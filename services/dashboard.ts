@@ -121,8 +121,9 @@ export async function getDashboardData(
   const range = resolveDashboardRange(filter, now);
   const today = dayStart(now);
   const tomorrow = shiftDays(today, 1);
+  const rangeIncludesToday = range.start <= today && range.end >= tomorrow;
 
-  const [meals, sessions, cardio, snapshots, goal, todayMeals, todaySessions, todayCardio, currentSnapshot] = await Promise.all([
+  const [meals, sessions, cardio, snapshots, goal, currentSnapshot] = await Promise.all([
     runDashboardQuery("range.meals", () => prisma.meal.findMany({
       where: { userId, date: { gte: range.start, lt: range.end } },
       include: { foods: true },
@@ -142,11 +143,20 @@ export async function getDashboardData(
       orderBy: { date: "asc" },
     }), diagnostics),
     runDashboardQuery("range.nutritionGoal", () => prisma.nutritionGoal.findUnique({ where: { userId } }), diagnostics),
-    runDashboardQuery("today.meals", () => prisma.meal.findMany({ where: { userId, date: { gte: today, lt: tomorrow } }, include: { foods: true } }), diagnostics),
-    runDashboardQuery("today.workoutSessions", () => prisma.workoutSession.findMany({ where: { userId, date: { gte: today, lt: tomorrow } }, include: { cardioSessions: true } }), diagnostics),
-    runDashboardQuery("today.cardioSessions", () => prisma.cardioSession.findMany({ where: { userId, sessionId: null, date: { gte: today, lt: tomorrow } } }), diagnostics),
     runDashboardQuery("today.currentBodyCompositionSnapshot", () => prisma.bodyCompositionSnapshot.findFirst({ where: { userId, date: { lt: tomorrow } }, orderBy: { date: "desc" } }), diagnostics),
   ]);
+
+  let todayMeals = meals.filter((meal) => meal.date >= today && meal.date < tomorrow);
+  let todaySessions = sessions.filter((session) => session.date >= today && session.date < tomorrow);
+  let todayCardio = cardio.filter((entry) => entry.date >= today && entry.date < tomorrow);
+
+  if (!rangeIncludesToday) {
+    [todayMeals, todaySessions, todayCardio] = await Promise.all([
+      runDashboardQuery("today.meals", () => prisma.meal.findMany({ where: { userId, date: { gte: today, lt: tomorrow } }, include: { foods: true } }), diagnostics),
+      runDashboardQuery("today.workoutSessions", () => prisma.workoutSession.findMany({ where: { userId, date: { gte: today, lt: tomorrow } }, include: { sets: true, cardioSessions: true } }), diagnostics),
+      runDashboardQuery("today.cardioSessions", () => prisma.cardioSession.findMany({ where: { userId, sessionId: null, date: { gte: today, lt: tomorrow } } }), diagnostics),
+    ]);
+  }
 
   const todayFoods = todayMeals.flatMap((meal) => meal.foods);
   const todayNutrition = roundNutrition(sumNutrition(todayFoods));
