@@ -42,9 +42,30 @@ export default async function DashboardPage({
 }: {
   searchParams: Promise<{ range?: string; from?: string; to?: string }>;
 }) {
-  const user = await requireUser();
+  const requestId = crypto.randomUUID();
+  const user = await requireUser({ requestId, operation: "dashboard-load" });
   const params = await searchParams;
-  const data = await getDashboardData(user.id, params);
+  let data;
+
+  try {
+    data = await getDashboardData(user.id, params, new Date(), {
+      requestId,
+      hasAuthenticatedUser: true,
+      hasLocalUser: Boolean(user),
+    });
+  } catch (error) {
+    const value = error instanceof Error ? error : new Error(String(error));
+    console.error("[dashboard-load-failure]", {
+      operation: "dashboard-page",
+      requestId,
+      hasAuthenticatedUser: true,
+      hasLocalUser: Boolean(user),
+      errorName: value.name,
+      errorMessage: value.message.replace(/(?:postgres(?:ql)?):\/\/\S+/gi, "[redacted-database-url]"),
+      errorStack: value.stack?.replace(/(?:postgres(?:ql)?):\/\/\S+/gi, "[redacted-database-url]"),
+    });
+    throw error;
+  }
 
   return (
     <div className="space-y-10">

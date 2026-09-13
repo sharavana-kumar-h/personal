@@ -9,6 +9,44 @@ export type DashboardFilter = {
   to?: string;
 };
 
+type DashboardDiagnostics = {
+  requestId: string;
+  hasAuthenticatedUser: boolean;
+  hasLocalUser: boolean;
+};
+
+function safeErrorDetails(error: unknown) {
+  const value = error instanceof Error ? error : new Error(String(error));
+  const prismaCode = typeof error === "object" && error !== null && "code" in error
+    ? String(error.code)
+    : undefined;
+
+  return {
+    errorName: value.name,
+    errorMessage: value.message.replace(/(?:postgres(?:ql)?):\/\/\S+/gi, "[redacted-database-url]"),
+    prismaCode,
+    errorStack: value.stack?.replace(/(?:postgres(?:ql)?):\/\/\S+/gi, "[redacted-database-url]"),
+  };
+}
+
+async function runDashboardQuery<T>(stage: string, query: () => Promise<T>, diagnostics: DashboardDiagnostics) {
+  console.info("[dashboard-query-start]", { operation: "getDashboardData", requestId: diagnostics.requestId, stage });
+
+  try {
+    return await query();
+  } catch (error) {
+    console.error("[dashboard-load-failure]", {
+      operation: "getDashboardData",
+      requestId: diagnostics.requestId,
+      stage,
+      hasAuthenticatedUser: diagnostics.hasAuthenticatedUser,
+      hasLocalUser: diagnostics.hasLocalUser,
+      ...safeErrorDetails(error),
+    });
+    throw error;
+  }
+}
+
 const rangeDays: Record<Exclude<DashboardRangeKey, "custom">, number> = {
   "7": 7,
   "14": 14,
@@ -74,35 +112,40 @@ function emptyNutrition(): NutritionValues {
   return { calories: 0, protein: 0, carbohydrates: 0, fat: 0, fiber: 0 };
 }
 
-export async function getDashboardData(userId: string, filter: DashboardFilter = {}, now = new Date()) {
+export async function getDashboardData(
+  userId: string,
+  filter: DashboardFilter = {},
+  now = new Date(),
+  diagnostics: DashboardDiagnostics = { requestId: "unknown", hasAuthenticatedUser: true, hasLocalUser: true },
+) {
   const range = resolveDashboardRange(filter, now);
   const today = dayStart(now);
   const tomorrow = shiftDays(today, 1);
 
   const [meals, sessions, cardio, snapshots, goal, todayMeals, todaySessions, todayCardio, currentSnapshot] = await Promise.all([
-    prisma.meal.findMany({
+    runDashboardQuery("range.meals", () => prisma.meal.findMany({
       where: { userId, date: { gte: range.start, lt: range.end } },
       include: { foods: true },
       orderBy: { date: "asc" },
-    }),
-    prisma.workoutSession.findMany({
+    }), diagnostics),
+    runDashboardQuery("range.workoutSessions", () => prisma.workoutSession.findMany({
       where: { userId, date: { gte: range.start, lt: range.end } },
       include: { sets: true, cardioSessions: true },
       orderBy: { date: "asc" },
-    }),
-    prisma.cardioSession.findMany({
+    }), diagnostics),
+    runDashboardQuery("range.cardioSessions", () => prisma.cardioSession.findMany({
       where: { userId, sessionId: null, date: { gte: range.start, lt: range.end } },
       orderBy: { date: "asc" },
-    }),
-    prisma.bodyCompositionSnapshot.findMany({
+    }), diagnostics),
+    runDashboardQuery("range.bodyCompositionSnapshots", () => prisma.bodyCompositionSnapshot.findMany({
       where: { userId, date: { gte: range.start, lt: range.end } },
       orderBy: { date: "asc" },
-    }),
-    prisma.nutritionGoal.findUnique({ where: { userId } }),
-    prisma.meal.findMany({ where: { userId, date: { gte: today, lt: tomorrow } }, include: { foods: true } }),
-    prisma.workoutSession.findMany({ where: { userId, date: { gte: today, lt: tomorrow } }, include: { cardioSessions: true } }),
-    prisma.cardioSession.findMany({ where: { userId, sessionId: null, date: { gte: today, lt: tomorrow } } }),
-    prisma.bodyCompositionSnapshot.findFirst({ where: { userId, date: { lt: tomorrow } }, orderBy: { date: "desc" } }),
+    }), diagnostics),
+    runDashboardQuery("range.nutritionGoal", () => prisma.nutritionGoal.findUnique({ where: { userId } }), diagnostics),
+    runDashboardQuery("today.meals", () => prisma.meal.findMany({ where: { userId, date: { gte: today, lt: tomorrow } }, include: { foods: true } }), diagnostics),
+    runDashboardQuery("today.workoutSessions", () => prisma.workoutSession.findMany({ where: { userId, date: { gte: today, lt: tomorrow } }, include: { cardioSessions: true } }), diagnostics),
+    runDashboardQuery("today.cardioSessions", () => prisma.cardioSession.findMany({ where: { userId, sessionId: null, date: { gte: today, lt: tomorrow } } }), diagnostics),
+    runDashboardQuery("today.currentBodyCompositionSnapshot", () => prisma.bodyCompositionSnapshot.findFirst({ where: { userId, date: { lt: tomorrow } }, orderBy: { date: "desc" } }), diagnostics),
   ]);
 
   const todayFoods = todayMeals.flatMap((meal) => meal.foods);
