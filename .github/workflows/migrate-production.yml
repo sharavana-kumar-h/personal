@@ -11,7 +11,10 @@ on:
 jobs:
   migrate:
     if: inputs.confirm == 'APPLY'
-    environment: production
+    environment: PRODUCTION
+    env:
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      DIRECT_URL: ${{ secrets.DIRECT_URL }}
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
