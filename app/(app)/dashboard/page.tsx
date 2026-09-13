@@ -1,7 +1,7 @@
 import Link from "next/link";
 
 import { requireUser } from "@/lib/auth";
-import { getPerformanceContext, measurePerformance } from "@/lib/perf";
+import { getPerformanceContext, measurePerformance, measurePerformanceSync } from "@/lib/perf";
 import { getDashboardData } from "@/services/dashboard";
 import DashboardCharts from "./dashboard-charts";
 
@@ -69,7 +69,7 @@ export default async function DashboardPage({
     throw error;
   }
 
-  return (
+  return measurePerformanceSync("page.dashboard.render", context, () => (
     <div className="space-y-10">
       <section className="rounded-3xl border border-slate-800 bg-[radial-gradient(circle_at_top_right,_rgba(52,211,153,0.14),_transparent_38%),#0f172a] p-6 sm:p-8">
         <div className="flex flex-col justify-between gap-6 lg:flex-row lg:items-end">
@@ -114,5 +114,5 @@ export default async function DashboardPage({
 
       <DashboardCharts data={data} />
     </div>
-  );
+  ));
 }

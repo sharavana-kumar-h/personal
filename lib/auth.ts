@@ -50,10 +50,13 @@ async function getSessionUserImpl(diagnostics: AuthDiagnostics = {}) {
   }
 
   try {
-    const localUser = await measurePerformance("auth.prisma.localUserLookup", context, () => prisma.user.findUnique({
-      where: { supabaseAuthId: data.user.id },
-      select: { id: true, email: true, name: true, supabaseAuthId: true },
-    }));
+    const localUser = await measurePerformance("auth.prisma.localUserLookup", context, async () => {
+      await measurePerformance("auth.prisma.connectionAcquire", context, () => prisma.$connect());
+      return measurePerformance("auth.prisma.localUserLookup.query", context, () => prisma.user.findUnique({
+        where: { supabaseAuthId: data.user.id },
+        select: { id: true, email: true, name: true, supabaseAuthId: true },
+      }));
+    });
 
     if (!localUser && diagnostics.operation) {
       console.error("[dashboard-auth-failure]", {
@@ -81,14 +84,20 @@ async function getSessionUserImpl(diagnostics: AuthDiagnostics = {}) {
   }
 }
 
-const getCachedSessionUser = cache((requestId: string) => getSessionUserImpl({ requestId }));
+const getCachedSessionUser = cache((requestId: string) => measurePerformance(
+  "auth.sessionUser.resolve",
+  { requestId },
+  () => getSessionUserImpl({ requestId }),
+));
 
-export function getSessionUser(diagnostics: AuthDiagnostics = {}) {
-  return getCachedSessionUser(diagnostics.requestId ?? crypto.randomUUID());
+export async function getSessionUser(diagnostics: AuthDiagnostics = {}) {
+  const requestId = diagnostics.requestId ?? crypto.randomUUID();
+  return measurePerformance("auth.getSessionUser", { requestId }, () => getCachedSessionUser(requestId));
 }
 
 export async function requireUser(diagnostics: AuthDiagnostics = {}) {
-  const user = await getSessionUser(diagnostics);
+  const requestId = diagnostics.requestId ?? crypto.randomUUID();
+  const user = await measurePerformance("auth.requireUser", { requestId }, () => getSessionUser({ ...diagnostics, requestId }));
 
   if (!user) {
     throw new Error("Unauthorized");

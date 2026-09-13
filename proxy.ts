@@ -9,6 +9,11 @@ const protectedPaths = ["/dashboard", "/today", "/workouts", "/nutrition", "/bod
 const publicPaths = ["/login", "/register", "/"];
 
 export async function proxy(request: NextRequest) {
+  const requestId = crypto.randomUUID();
+  return measurePerformance("proxy.request", { requestId }, () => handleProxy(request, requestId));
+}
+
+async function handleProxy(request: NextRequest, requestId: string) {
   const { pathname } = request.nextUrl;
   const isProtected = protectedPaths.some((path) => pathname === path || pathname.startsWith(`${path}/`));
   const isPublic = publicPaths.some((path) => pathname === path || pathname.startsWith(`${path}/`));
@@ -17,7 +22,6 @@ export async function proxy(request: NextRequest) {
     return NextResponse.next();
   }
 
-  const requestId = crypto.randomUUID();
   const requestHeaders = new Headers(request.headers);
   requestHeaders.set("x-request-id", requestId);
   let response = NextResponse.next({ request: { headers: requestHeaders } });
