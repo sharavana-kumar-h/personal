@@ -17,6 +17,17 @@ For a fresh development database, Prisma should apply `20260912122000_init`. Rev
 
 ## Production application
 
+For the Vercel runtime, `DATABASE_URL` must use the Supabase Transaction Pooler
+on port `6543` and include `pgbouncer=true&connection_limit=1`, for example:
+
+```text
+DATABASE_URL=postgresql://...:6543/postgres?pgbouncer=true&connection_limit=1
+```
+
+`DIRECT_URL` must remain the Supabase direct database connection URL (normally
+port `5432`) and is used by Prisma migrations. Do not use the transaction
+pooler URL for `DIRECT_URL`.
+
 After the migration has been reviewed and committed:
 
 ```bash
