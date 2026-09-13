@@ -1,19 +1,20 @@
 import { prisma } from "@/lib/db";
+import { measurePerformance, type PerformanceContext } from "@/lib/perf";
 
-export async function getWorkoutData(userId: string) {
+export async function getWorkoutData(userId: string, context: PerformanceContext = { requestId: crypto.randomUUID() }) {
   const [programs, sessions, standaloneCardio] = await Promise.all([
-    prisma.workoutProgram.findMany({
+    measurePerformance("workouts.programs", context, () => prisma.workoutProgram.findMany({
       where: { userId },
       include: { days: { include: { exercises: { orderBy: { createdAt: "asc" } } }, orderBy: { createdAt: "asc" } } },
       orderBy: [{ isActive: "desc" }, { updatedAt: "desc" }],
-    }),
-    prisma.workoutSession.findMany({
+    })),
+    measurePerformance("workouts.sessions", context, () => prisma.workoutSession.findMany({
       where: { userId },
       include: { sets: { orderBy: { setNumber: "asc" } }, cardioSessions: true, program: { select: { name: true } } },
       orderBy: { date: "desc" },
       take: 50,
-    }),
-    prisma.cardioSession.findMany({ where: { userId, sessionId: null }, orderBy: { date: "desc" }, take: 50 }),
+    })),
+    measurePerformance("workouts.standaloneCardio", context, () => prisma.cardioSession.findMany({ where: { userId, sessionId: null }, orderBy: { date: "desc" }, take: 50 })),
   ]);
 
   const allSets = sessions.flatMap((session) => session.sets);

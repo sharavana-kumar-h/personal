@@ -1,29 +1,30 @@
 import { prisma } from "@/lib/db";
+import { measurePerformance, type PerformanceContext } from "@/lib/perf";
 
-export async function getUserSnapshots(userId: string) {
-  return prisma.bodyCompositionSnapshot.findMany({
+export async function getUserSnapshots(userId: string, context: PerformanceContext = { requestId: crypto.randomUUID() }) {
+  return measurePerformance("body.getUserSnapshots", context, () => prisma.bodyCompositionSnapshot.findMany({
     where: { userId },
     orderBy: { date: "desc" },
     include: {
       leanSegments: true,
       fatSegments: true,
     },
-  });
+  }));
 }
 
-export async function getCurrentSnapshot(userId: string) {
-  return prisma.bodyCompositionSnapshot.findFirst({
+export async function getCurrentSnapshot(userId: string, context: PerformanceContext = { requestId: crypto.randomUUID() }) {
+  return measurePerformance("body.getCurrentSnapshot", context, () => prisma.bodyCompositionSnapshot.findFirst({
     where: { userId },
     orderBy: { date: "desc" },
     include: {
       leanSegments: true,
       fatSegments: true,
     },
-  });
+  }));
 }
 
-export async function getSnapshotById(userId: string, snapshotId: string) {
-  return prisma.bodyCompositionSnapshot.findFirst({
+export async function getSnapshotById(userId: string, snapshotId: string, context: PerformanceContext = { requestId: crypto.randomUUID() }) {
+  return measurePerformance("body.getSnapshotById", context, () => prisma.bodyCompositionSnapshot.findFirst({
     where: {
       id: snapshotId,
       userId,
@@ -32,7 +33,7 @@ export async function getSnapshotById(userId: string, snapshotId: string) {
       leanSegments: true,
       fatSegments: true,
     },
-  });
+  }));
 }
 
 export function buildSegmentMap(items: { segment: string; value: number }[]) {

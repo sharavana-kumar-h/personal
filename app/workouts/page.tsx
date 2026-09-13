@@ -2,6 +2,7 @@ import Link from "next/link";
 
 import { addCardioSession, addPlannedExercise, addWorkoutDay, addWorkoutSet, createWorkoutProgram, createWorkoutSession } from "@/app/actions/workouts";
 import { requireUser } from "@/lib/auth";
+import { createPerformanceContext, measurePerformance } from "@/lib/perf";
 import { getWorkoutData } from "@/services/workouts";
 
 function today() {
@@ -9,9 +10,10 @@ function today() {
 }
 
 export default async function WorkoutsPage({ searchParams }: { searchParams: Promise<{ sessionId?: string }> }) {
+  const context = createPerformanceContext();
   const user = await requireUser();
   const params = await searchParams;
-  const data = await getWorkoutData(user.id);
+  const data = await measurePerformance("page.workouts.data", context, () => getWorkoutData(user.id, context));
   const selectedSession = data.sessions.find((session) => session.id === params.sessionId) ?? data.sessions[0];
 
   return (

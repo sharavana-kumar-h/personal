@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 
 import { prisma } from "@/lib/db";
 import { getSessionUser } from "@/lib/auth";
+import { measurePerformance } from "@/lib/perf";
 import { consumeRateLimit } from "@/lib/rate-limit";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { loginSchema, registerSchema } from "@/lib/validation";
@@ -74,6 +75,7 @@ export async function registerUser(formData: FormData) {
 }
 
 export async function loginUser(formData: FormData) {
+  const requestId = crypto.randomUUID();
   const parsed = loginSchema.safeParse({
     email: String(formData.get("email") ?? ""),
     password: String(formData.get("password") ?? ""),
@@ -90,12 +92,12 @@ export async function loginUser(formData: FormData) {
   }
 
   const supabase = await createSupabaseServerClient();
-  const { error } = await supabase.auth.signInWithPassword({ email, password: parsed.data.password });
+  const { error } = await measurePerformance("action.login.supabaseSignIn", { requestId }, () => supabase.auth.signInWithPassword({ email, password: parsed.data.password }));
   if (error) {
     throw authError();
   }
 
-  const user = await getSessionUser();
+  const user = await measurePerformance("action.login.localUserLookup", { requestId }, () => getSessionUser());
   if (!user) {
     await supabase.auth.signOut();
     throw authError();

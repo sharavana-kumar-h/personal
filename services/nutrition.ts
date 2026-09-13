@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/db";
+import { measurePerformance, type PerformanceContext } from "@/lib/perf";
 import {
   averageNutrition,
   emptyNutritionValues,
@@ -8,7 +9,7 @@ import {
   sumNutrition,
 } from "@/lib/nutrition";
 
-export async function getNutritionDashboard(userId: string, dateInput: string) {
+export async function getNutritionDashboard(userId: string, dateInput: string, context: PerformanceContext = { requestId: crypto.randomUUID() }) {
   const { start, end } = getUtcDayRange(dateInput);
   const dates = getPreviousSevenDayDates(dateInput);
   const weekStart = new Date(`${dates[0]}T00:00:00.000Z`);
@@ -16,17 +17,17 @@ export async function getNutritionDashboard(userId: string, dateInput: string) {
   weekEnd.setUTCDate(weekEnd.getUTCDate() + 1);
 
   const [meals, weeklyMeals, goal] = await Promise.all([
-    prisma.meal.findMany({
+    measurePerformance("nutrition.meals", context, () => prisma.meal.findMany({
       where: { userId, date: { gte: start, lt: end } },
       include: { foods: { orderBy: { createdAt: "asc" } } },
       orderBy: [{ date: "asc" }, { createdAt: "asc" }],
-    }),
-    prisma.meal.findMany({
+    })),
+    measurePerformance("nutrition.weeklyMeals", context, () => prisma.meal.findMany({
       where: { userId, date: { gte: weekStart, lt: weekEnd } },
       include: { foods: true },
       orderBy: { date: "asc" },
-    }),
-    prisma.nutritionGoal.findUnique({ where: { userId } }),
+    })),
+    measurePerformance("nutrition.goal", context, () => prisma.nutritionGoal.findUnique({ where: { userId } })),
   ]);
 
   const dailyTotals = dates.map((date) => {

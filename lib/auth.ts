@@ -1,4 +1,7 @@
+import { cache } from "react";
+
 import { prisma } from "@/lib/db";
+import { measurePerformance, type PerformanceContext } from "@/lib/perf";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
 export function assertUserOwnership(currentUserId: string, resourceUserId: string) {
@@ -26,9 +29,12 @@ function safeErrorDetails(error: unknown) {
   };
 }
 
-export async function getSessionUser(diagnostics: AuthDiagnostics = {}) {
-  const supabase = await createSupabaseServerClient();
-  const { data, error } = await supabase.auth.getUser();
+async function getSessionUserImpl(diagnostics: AuthDiagnostics = {}) {
+  const context: PerformanceContext = { requestId: diagnostics.requestId ?? crypto.randomUUID() };
+  const { data, error } = await measurePerformance("auth.supabase.getUser", context, async () => {
+    const supabase = await createSupabaseServerClient();
+    return supabase.auth.getUser();
+  });
 
   if (error || !data.user) {
     if (diagnostics.operation) {
@@ -44,10 +50,10 @@ export async function getSessionUser(diagnostics: AuthDiagnostics = {}) {
   }
 
   try {
-    const localUser = await prisma.user.findUnique({
+    const localUser = await measurePerformance("auth.prisma.localUserLookup", context, () => prisma.user.findUnique({
       where: { supabaseAuthId: data.user.id },
       select: { id: true, email: true, name: true, supabaseAuthId: true },
-    });
+    }));
 
     if (!localUser && diagnostics.operation) {
       console.error("[dashboard-auth-failure]", {
@@ -73,6 +79,14 @@ export async function getSessionUser(diagnostics: AuthDiagnostics = {}) {
     }
     throw lookupError;
   }
+}
+
+const getCachedSessionUser = cache(() => getSessionUserImpl());
+
+export function getSessionUser(diagnostics: AuthDiagnostics = {}) {
+  return Object.keys(diagnostics).length === 0
+    ? getCachedSessionUser()
+    : getSessionUserImpl(diagnostics);
 }
 
 export async function requireUser(diagnostics: AuthDiagnostics = {}) {

@@ -1,6 +1,7 @@
 import Link from "next/link";
 
 import { requireUser } from "@/lib/auth";
+import { createPerformanceContext, measurePerformance } from "@/lib/perf";
 import { getDashboardData } from "@/services/dashboard";
 import DashboardCharts from "./dashboard-charts";
 
@@ -42,17 +43,18 @@ export default async function DashboardPage({
 }: {
   searchParams: Promise<{ range?: string; from?: string; to?: string }>;
 }) {
-  const requestId = crypto.randomUUID();
-  const user = await requireUser({ requestId, operation: "dashboard-load" });
+  const context = createPerformanceContext();
+  const requestId = context.requestId;
+  const user = await requireUser();
   const params = await searchParams;
   let data;
 
   try {
-    data = await getDashboardData(user.id, params, new Date(), {
+    data = await measurePerformance("page.dashboard.data", context, () => getDashboardData(user.id, params, new Date(), {
       requestId,
       hasAuthenticatedUser: true,
       hasLocalUser: Boolean(user),
-    });
+    }));
   } catch (error) {
     const value = error instanceof Error ? error : new Error(String(error));
     console.error("[dashboard-load-failure]", {

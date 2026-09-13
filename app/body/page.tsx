@@ -2,13 +2,15 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 
 import { requireUser } from "@/lib/auth";
-import { getCurrentSnapshot, getUserSnapshots } from "@/services/body-composition";
+import { createPerformanceContext, measurePerformance } from "@/lib/perf";
+import { getUserSnapshots } from "@/services/body-composition";
 import { buildSegmentMap } from "@/services/body-composition";
 
 export default async function BodyPage() {
+  const context = createPerformanceContext();
   const user = await requireUser();
-  const current = await getCurrentSnapshot(user.id);
-  const snapshots = await getUserSnapshots(user.id);
+  const snapshots = await measurePerformance("page.body.data", context, () => getUserSnapshots(user.id, context));
+  const current = snapshots[0];
 
   if (!current) {
     redirect("/body/new");

@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/db";
 import { roundNutrition, sumNutrition, type NutritionValues } from "@/lib/nutrition";
+import { measurePerformance } from "@/lib/perf";
 
 export type DashboardRangeKey = "7" | "14" | "30" | "90" | "180" | "365" | "custom";
 
@@ -30,10 +31,8 @@ function safeErrorDetails(error: unknown) {
 }
 
 async function runDashboardQuery<T>(stage: string, query: () => Promise<T>, diagnostics: DashboardDiagnostics) {
-  console.info("[dashboard-query-start]", { operation: "getDashboardData", requestId: diagnostics.requestId, stage });
-
   try {
-    return await query();
+    return await measurePerformance(`dashboard.${stage}`, { requestId: diagnostics.requestId }, query);
   } catch (error) {
     console.error("[dashboard-load-failure]", {
       operation: "getDashboardData",

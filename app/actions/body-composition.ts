@@ -7,9 +7,24 @@ import { prisma } from "@/lib/db";
 import { requireUser } from "@/lib/auth";
 import { bodyCompositionSnapshotSchema } from "@/lib/validation-body";
 import { calculateBmi, calculateBmr } from "@/lib/body-composition";
+import { measurePerformance } from "@/lib/perf";
 
-export async function createBodyCompositionSnapshot(formData: FormData) {
-  const user = await requireUser();
+export type BodyCompositionFormState = {
+  message?: string;
+  fieldErrors?: Record<string, string[]>;
+};
+
+function bodyFieldErrors(error: { issues: Array<{ path: PropertyKey[]; message: string }> }) {
+  return error.issues.reduce<Record<string, string[]>>((errors, issue) => {
+    const key = issue.path.join(".");
+    errors[key] = [...(errors[key] ?? []), issue.message];
+    return errors;
+  }, {});
+}
+
+export async function createBodyCompositionSnapshot(previousState: BodyCompositionFormState, formData: FormData): Promise<BodyCompositionFormState> {
+  const requestId = crypto.randomUUID();
+  const user = await requireUser({ requestId, operation: "body-create-action" });
 
   const raw = {
     date: String(formData.get("date") ?? ""),
@@ -48,7 +63,7 @@ export async function createBodyCompositionSnapshot(formData: FormData) {
   const parsed = bodyCompositionSnapshotSchema.safeParse(raw);
 
   if (!parsed.success) {
-    throw new Error(parsed.error.issues[0]?.message ?? "Invalid body composition data.");
+    return { message: "Please correct the highlighted fields.", fieldErrors: bodyFieldErrors(parsed.error) };
   }
 
   const data = parsed.data;
@@ -61,7 +76,7 @@ export async function createBodyCompositionSnapshot(formData: FormData) {
   const finalBmi = data.bmi ?? (heightCm > 0 ? calculateBmi(weightKg, heightCm) : null);
   const finalBmr = data.bmr ?? (heightCm > 0 && age > 0 ? calculateBmr({ weightKg, heightCm, age, gender }) : null);
 
-  const snapshot = await prisma.bodyCompositionSnapshot.create({
+  const snapshot = await measurePerformance("body.createSnapshot", { requestId }, () => prisma.bodyCompositionSnapshot.create({
     data: {
       userId: user.id,
       date: new Date(data.date),
@@ -92,13 +107,17 @@ export async function createBodyCompositionSnapshot(formData: FormData) {
         })),
       },
     },
-  });
+  }));
 
   revalidatePath("/body");
+  revalidatePath("/dashboard");
+  revalidatePath("/body/compare");
+  revalidatePath("/body/trends");
   redirect(`/body/${snapshot.id}`);
 }
 
 export async function updateBodyCompositionSnapshot(id: string, formData: FormData) {
+  const requestId = crypto.randomUUID();
   const user = await requireUser();
 
   const existing = await prisma.bodyCompositionSnapshot.findUnique({ where: { id } });
@@ -161,7 +180,7 @@ export async function updateBodyCompositionSnapshot(id: string, formData: FormDa
     return formData.has(key) ? null : existingValue;
   };
 
-  await prisma.bodyCompositionSnapshot.update({
+  await measurePerformance("body.updateSnapshot", { requestId }, () => prisma.bodyCompositionSnapshot.update({
     where: { id },
     data: {
       date: new Date(data.date),
@@ -194,8 +213,11 @@ export async function updateBodyCompositionSnapshot(id: string, formData: FormDa
         })),
       },
     },
-  });
+  }));
 
   revalidatePath("/body");
+  revalidatePath("/dashboard");
+  revalidatePath("/body/compare");
+  revalidatePath("/body/trends");
   redirect(`/body/${id}`);
 }

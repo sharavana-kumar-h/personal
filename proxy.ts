@@ -2,6 +2,7 @@ import { createServerClient } from "@supabase/ssr";
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
+import { measurePerformance } from "@/lib/perf";
 import { getSupabaseEnv } from "@/lib/supabase/config";
 
 const protectedPaths = ["/dashboard", "/today", "/workouts", "/nutrition", "/body", "/progress", "/goals", "/ai", "/settings"];
@@ -31,7 +32,8 @@ export async function proxy(request: NextRequest) {
     },
   });
 
-  const { data: { user } } = await supabase.auth.getUser();
+  const requestId = crypto.randomUUID();
+  const { data: { user } } = await measurePerformance("proxy.auth.getUser", { requestId }, () => supabase.auth.getUser());
 
   if (isProtected && !user) {
     return NextResponse.redirect(new URL("/login", request.url));

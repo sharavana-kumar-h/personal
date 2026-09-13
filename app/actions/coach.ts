@@ -2,6 +2,7 @@
 
 import { requireUser } from "@/lib/auth";
 import { consumeRateLimit } from "@/lib/rate-limit";
+import { measurePerformance } from "@/lib/perf";
 import { AiServiceError, aiService } from "@/services/ai";
 import type { CoachMode } from "@/services/coach-context";
 import { buildCoachContext } from "@/services/coach-context";
@@ -22,6 +23,7 @@ export async function sendCoachMessage(
   previousState: CoachMessageState,
   formData: FormData,
 ): Promise<CoachMessageState> {
+  const requestId = crypto.randomUUID();
   const user = await requireUser();
   const modeValue = String(formData.get("mode") ?? previousState.mode);
   const mode = isCoachMode(modeValue) ? modeValue : previousState.mode;
@@ -51,9 +53,9 @@ export async function sendCoachMessage(
   });
 
   try {
-    const context = await buildCoachContext(user.id, mode);
-    const answer = await aiService.chatWithCoach(message, context);
-    await prisma.$transaction([
+    const context = await measurePerformance("action.coach.buildContext", { requestId }, () => buildCoachContext(user.id, mode));
+    const answer = await measurePerformance("action.coach.deepSeek", { requestId }, () => aiService.chatWithCoach(message, context));
+    await measurePerformance("action.coach.persist", { requestId }, () => prisma.$transaction([
       prisma.coachMessage.create({
         data: { conversationId: ownedConversation.id, role: "user", content: message },
         select: { id: true, role: true, content: true },
@@ -66,15 +68,15 @@ export async function sendCoachMessage(
         where: { id: ownedConversation.id },
         data: { updatedAt: new Date() },
       }),
-    ]);
-    const persistedMessages = await prisma.coachMessage.findMany({
+    ]));
+    const persistedMessages = await measurePerformance("action.coach.loadMessages", { requestId }, () => prisma.coachMessage.findMany({
       where: {
         conversationId: ownedConversation.id,
         conversation: { userId: user.id },
       },
       orderBy: { createdAt: "asc" },
       select: { id: true, role: true, content: true },
-    });
+    }));
 
     return {
       mode,
