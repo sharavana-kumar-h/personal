@@ -17,7 +17,10 @@ export async function proxy(request: NextRequest) {
     return NextResponse.next();
   }
 
-  let response = NextResponse.next({ request });
+  const requestId = crypto.randomUUID();
+  const requestHeaders = new Headers(request.headers);
+  requestHeaders.set("x-request-id", requestId);
+  let response = NextResponse.next({ request: { headers: requestHeaders } });
   const supabaseEnv = getSupabaseEnv();
   const supabase = createServerClient(supabaseEnv.url, supabaseEnv.anonKey, {
     cookies: {
@@ -26,13 +29,13 @@ export async function proxy(request: NextRequest) {
       },
       setAll(cookiesToSet) {
         cookiesToSet.forEach(({ name, value }) => request.cookies.set(name, value));
-        response = NextResponse.next({ request });
+        requestHeaders.set("cookie", request.cookies.toString());
+        response = NextResponse.next({ request: { headers: requestHeaders } });
         cookiesToSet.forEach(({ name, value, options }) => response.cookies.set(name, value, options));
       },
     },
   });
 
-  const requestId = crypto.randomUUID();
   const { data: { user } } = await measurePerformance("proxy.auth.getUser", { requestId }, () => supabase.auth.getUser());
 
   if (isProtected && !user) {

@@ -2,7 +2,7 @@ import Link from "next/link";
 
 import { addCardioSession, addPlannedExercise, addWorkoutDay, addWorkoutSet, createWorkoutProgram, createWorkoutSession } from "@/app/actions/workouts";
 import { requireUser } from "@/lib/auth";
-import { createPerformanceContext, measurePerformance } from "@/lib/perf";
+import { getPerformanceContext, measurePerformance } from "@/lib/perf";
 import { getWorkoutData } from "@/services/workouts";
 
 function today() {
@@ -10,8 +10,8 @@ function today() {
 }
 
 export default async function WorkoutsPage({ searchParams }: { searchParams: Promise<{ sessionId?: string }> }) {
-  const context = createPerformanceContext();
-  const user = await requireUser();
+  const context = await getPerformanceContext();
+  const user = await requireUser({ requestId: context.requestId, operation: "workouts-page" });
   const params = await searchParams;
   const data = await measurePerformance("page.workouts.data", context, () => getWorkoutData(user.id, context));
   const selectedSession = data.sessions.find((session) => session.id === params.sessionId) ?? data.sessions[0];
@@ -52,7 +52,7 @@ export default async function WorkoutsPage({ searchParams }: { searchParams: Pro
               <input name="durationMin" type="number" min="0" placeholder="Minutes" className="rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-white" />
               <button className="rounded-lg bg-slate-100 px-3 py-2 text-sm font-semibold text-slate-950">Start session</button>
             </form>
-            <div className="mt-5 space-y-3">{data.sessions.map((session) => <div key={session.id} className="rounded-xl border border-slate-800 bg-slate-950 p-4"><div className="flex flex-wrap justify-between gap-3"><div><p className="font-semibold text-white">{session.dayName || session.program?.name || "Workout session"}</p><p className="text-sm text-slate-500">{session.date.toISOString().slice(0, 10)} · {session.sets.length} sets · {session.cardioSessions.length} cardio entries</p></div><Link href={`/workouts?sessionId=${session.id}`} className="text-sm text-emerald-400">Log details</Link></div></div>)}{data.sessions.length === 0 ? <p className="text-sm text-slate-500">No completed sessions yet.</p> : null}</div>
+            <div className="mt-5 space-y-3">{data.sessions.map((session) => <div key={session.id} className="rounded-xl border border-slate-800 bg-slate-950 p-4"><div className="flex flex-wrap justify-between gap-3"><div><p className="font-semibold text-white">{session.dayName || session.program?.name || "Workout session"}</p><p className="text-sm text-slate-500">{session.date.toISOString().slice(0, 10)} · {session.sets.length} sets · {session.cardioSessions.length} cardio entries</p></div><Link href={`/workouts?sessionId=${session.id}`} prefetch={false} className="text-sm text-emerald-400">Log details</Link></div></div>)}{data.sessions.length === 0 ? <p className="text-sm text-slate-500">No completed sessions yet.</p> : null}</div>
           </div>
         </div>
 

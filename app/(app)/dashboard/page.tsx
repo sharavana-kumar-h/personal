@@ -1,7 +1,7 @@
 import Link from "next/link";
 
 import { requireUser } from "@/lib/auth";
-import { createPerformanceContext, measurePerformance } from "@/lib/perf";
+import { getPerformanceContext, measurePerformance } from "@/lib/perf";
 import { getDashboardData } from "@/services/dashboard";
 import DashboardCharts from "./dashboard-charts";
 
@@ -43,9 +43,9 @@ export default async function DashboardPage({
 }: {
   searchParams: Promise<{ range?: string; from?: string; to?: string }>;
 }) {
-  const context = createPerformanceContext();
+  const context = await getPerformanceContext();
   const requestId = context.requestId;
-  const user = await requireUser();
+  const user = await requireUser({ requestId, operation: "dashboard-load" });
   const params = await searchParams;
   let data;
 
@@ -79,9 +79,9 @@ export default async function DashboardPage({
             <p className="mt-3 max-w-2xl text-slate-300">A clear read on what you have actually logged, with estimates labeled and missing data left visible.</p>
           </div>
           <div className="flex flex-wrap gap-2">
-            <Link href="/nutrition" className="rounded-lg border border-slate-700 px-3 py-2 text-sm text-slate-200 hover:border-emerald-400">Log nutrition</Link>
-            <Link href="/workouts" className="rounded-lg border border-slate-700 px-3 py-2 text-sm text-slate-200 hover:border-emerald-400">Log workout</Link>
-            <Link href="/ai" className="rounded-lg bg-emerald-500 px-3 py-2 text-sm font-semibold text-slate-950 hover:bg-emerald-400">Open AI coach</Link>
+            <Link href="/nutrition" prefetch={false} className="rounded-lg border border-slate-700 px-3 py-2 text-sm text-slate-200 hover:border-emerald-400">Log nutrition</Link>
+            <Link href="/workouts" prefetch={false} className="rounded-lg border border-slate-700 px-3 py-2 text-sm text-slate-200 hover:border-emerald-400">Log workout</Link>
+            <Link href="/ai" prefetch={false} className="rounded-lg bg-emerald-500 px-3 py-2 text-sm font-semibold text-slate-950 hover:bg-emerald-400">Open AI coach</Link>
           </div>
         </div>
       </section>

@@ -2,9 +2,11 @@ import { redirect } from "next/navigation";
 
 import { logoutUser } from "@/app/actions/auth";
 import { getSessionUser } from "@/lib/auth";
+import { getPerformanceContext } from "@/lib/perf";
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
-  const user = await getSessionUser();
+  const context = await getPerformanceContext();
+  const user = await getSessionUser({ requestId: context.requestId, operation: "app-layout" });
 
   if (!user) {
     redirect("/login");

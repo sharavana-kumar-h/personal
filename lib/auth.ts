@@ -81,12 +81,10 @@ async function getSessionUserImpl(diagnostics: AuthDiagnostics = {}) {
   }
 }
 
-const getCachedSessionUser = cache(() => getSessionUserImpl());
+const getCachedSessionUser = cache((requestId: string) => getSessionUserImpl({ requestId }));
 
 export function getSessionUser(diagnostics: AuthDiagnostics = {}) {
-  return Object.keys(diagnostics).length === 0
-    ? getCachedSessionUser()
-    : getSessionUserImpl(diagnostics);
+  return getCachedSessionUser(diagnostics.requestId ?? crypto.randomUUID());
 }
 
 export async function requireUser(diagnostics: AuthDiagnostics = {}) {

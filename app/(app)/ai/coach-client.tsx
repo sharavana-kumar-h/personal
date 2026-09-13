@@ -49,8 +49,8 @@ export default function CoachClient({
       </div>
 
       <div className="flex gap-2 border-b border-slate-800">
-        <Link href="/ai?mode=nutrition" className={`border-b-2 px-4 py-3 text-sm font-semibold ${mode === "nutrition" ? "border-emerald-400 text-emerald-300" : "border-transparent text-slate-500 hover:text-slate-300"}`}>Nutrition Coach</Link>
-        <Link href="/ai?mode=workout" className={`border-b-2 px-4 py-3 text-sm font-semibold ${mode === "workout" ? "border-emerald-400 text-emerald-300" : "border-transparent text-slate-500 hover:text-slate-300"}`}>Workout Coach</Link>
+        <Link href="/ai?mode=nutrition" prefetch={false} className={`border-b-2 px-4 py-3 text-sm font-semibold ${mode === "nutrition" ? "border-emerald-400 text-emerald-300" : "border-transparent text-slate-500 hover:text-slate-300"}`}>Nutrition Coach</Link>
+        <Link href="/ai?mode=workout" prefetch={false} className={`border-b-2 px-4 py-3 text-sm font-semibold ${mode === "workout" ? "border-emerald-400 text-emerald-300" : "border-transparent text-slate-500 hover:text-slate-300"}`}>Workout Coach</Link>
       </div>
 
       <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_280px]">

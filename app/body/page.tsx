@@ -2,13 +2,13 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 
 import { requireUser } from "@/lib/auth";
-import { createPerformanceContext, measurePerformance } from "@/lib/perf";
+import { getPerformanceContext, measurePerformance } from "@/lib/perf";
 import { getUserSnapshots } from "@/services/body-composition";
 import { buildSegmentMap } from "@/services/body-composition";
 
 export default async function BodyPage() {
-  const context = createPerformanceContext();
-  const user = await requireUser();
+  const context = await getPerformanceContext();
+  const user = await requireUser({ requestId: context.requestId, operation: "body-page" });
   const snapshots = await measurePerformance("page.body.data", context, () => getUserSnapshots(user.id, context));
   const current = snapshots[0];
 
@@ -28,6 +28,7 @@ export default async function BodyPage() {
         </div>
         <Link
           href="/body/new"
+          prefetch={false}
           className="rounded-xl bg-emerald-500 px-4 py-2 font-medium text-slate-950 transition hover:bg-emerald-400"
         >
           Add snapshot
@@ -89,8 +90,8 @@ export default async function BodyPage() {
                 <div className="flex items-center justify-between gap-4 text-sm text-slate-300">
                   <span>{new Date(snapshot.date).toLocaleDateString()}</span>
                   <div className="flex gap-2">
-                    <Link href={`/body/${snapshot.id}`} className="text-emerald-400 hover:text-emerald-300">View</Link>
-                    <Link href={`/body/${snapshot.id}/edit`} className="text-sky-400 hover:text-sky-300">Edit</Link>
+                    <Link href={`/body/${snapshot.id}`} prefetch={false} className="text-emerald-400 hover:text-emerald-300">View</Link>
+                    <Link href={`/body/${snapshot.id}/edit`} prefetch={false} className="text-sky-400 hover:text-sky-300">Edit</Link>
                   </div>
                 </div>
               </div>

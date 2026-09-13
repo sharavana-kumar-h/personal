@@ -8,7 +8,7 @@ import {
   updateFoodEntry,
 } from "@/app/actions/nutrition";
 import { requireUser } from "@/lib/auth";
-import { createPerformanceContext, measurePerformance } from "@/lib/perf";
+import { getPerformanceContext, measurePerformance } from "@/lib/perf";
 import { calculateRemainingCalories, formatDateInput } from "@/lib/nutrition";
 import { getMealDisplayName, getNutritionDashboard, getNutritionGoalOrDefault } from "@/services/nutrition";
 
@@ -39,8 +39,8 @@ export default async function NutritionPage({
 }: {
   searchParams: Promise<{ date?: string }>;
 }) {
-  const context = createPerformanceContext();
-  const user = await requireUser();
+  const context = await getPerformanceContext();
+  const user = await requireUser({ requestId: context.requestId, operation: "nutrition-page" });
   const params = await searchParams;
   const date = params.date && /^\d{4}-\d{2}-\d{2}$/.test(params.date) ? params.date : formatDateInput();
   const dashboard = await measurePerformance("page.nutrition.data", context, () => getNutritionDashboard(user.id, date, context));

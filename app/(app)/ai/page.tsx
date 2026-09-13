@@ -1,5 +1,5 @@
 import { requireUser } from "@/lib/auth";
-import { createPerformanceContext, measurePerformance } from "@/lib/perf";
+import { getPerformanceContext, measurePerformance } from "@/lib/perf";
 import type { CoachMessageState } from "@/app/actions/coach";
 import type { CoachMode } from "@/services/coach-context";
 import { getCoachConversation } from "@/services/coach-conversations";
@@ -14,8 +14,8 @@ export default async function AiCoachPage({
 }: {
   searchParams: Promise<{ mode?: string; conversationId?: string }>;
 }) {
-  const context = createPerformanceContext();
-  const user = await requireUser();
+  const context = await getPerformanceContext();
+  const user = await requireUser({ requestId: context.requestId, operation: "ai-page" });
   const params = await searchParams;
   const mode = parseMode(params.mode);
   const conversation = await measurePerformance("page.ai.data", context, () => getCoachConversation(user.id, mode, params.conversationId, context));
